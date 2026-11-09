@@ -1,0 +1,90 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: siase-execution-service
+  namespace: siase
+  labels:
+    app: siase-execution-service
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: siase-execution-service
+  template:
+    metadata:
+      labels:
+        app: siase-execution-service
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8093"
+        prometheus.io/path: "/actuator/prometheus"
+    spec:
+      containers:
+        - name: siase-execution-service
+          image: ECR_REGISTRY/ECR_REPOSITORY:IMAGE_TAG
+          ports:
+            - containerPort: 8083
+              name: http
+            - containerPort: 8093
+              name: management
+          envFrom:
+            - configMapRef:
+                name: siase-execution-config
+            - secretRef:
+                name: siase-execution-secret
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: 8093
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: 8093
+            initialDelaySeconds: 60
+            periodSeconds: 15
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "250m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: siase-execution-service
+  namespace: siase
+spec:
+  selector:
+    app: siase-execution-service
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8083
+    - name: management
+      port: 8093
+      targetPort: 8093
+  type: LoadBalancer
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: siase-execution-service-hpa
+  namespace: siase
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: siase-execution-service
+  minReplicas: 2
+  maxReplicas: 4
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
