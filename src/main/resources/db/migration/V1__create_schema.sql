@@ -1,12 +1,9 @@
-CREATE TABLE IF NOT EXISTS itens_execucao (
-    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    os_id           VARCHAR(36)   NOT NULL,
-    os_numero       VARCHAR(30)   NOT NULL,
-    servico_nome    VARCHAR(255),
-    mecanico        VARCHAR(255),
-    iniciado_em     TIMESTAMP,
-    finalizado_em   TIMESTAMP,
-    criado_em       TIMESTAMP     NOT NULL DEFAULT NOW()
+CREATE TABLE historico_execucao (
+    id            BIGSERIAL PRIMARY KEY,
+    os_id         UUID        NOT NULL,
+    evento        VARCHAR(64) NOT NULL,
+    detalhe       VARCHAR(2000),
+    registrado_em TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE INDEX IF NOT EXISTS idx_itens_exec_os_id ON itens_execucao(os_id);
+CREATE INDEX idx_historico_execucao_os ON historico_execucao (os_id, registrado_em);
