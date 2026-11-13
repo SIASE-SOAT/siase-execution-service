@@ -1,4 +1,4 @@
-package br.com.fiap.siase.infrastructure.adapters.input.sqs;
+package br.com.fiap.siase.infrastructure.adapters.input;
 
 import br.com.fiap.siase.application.usecase.CompensarExecucaoUseCase;
 import br.com.fiap.siase.application.usecase.EnfileirarOsUseCase;

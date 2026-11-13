@@ -1,4 +1,4 @@
-package br.com.fiap.siase.execution.bdd;
+package br.com.fiap.siase.bdd;
 
 import org.junit.platform.suite.api.ConfigurationParameter;
 import org.junit.platform.suite.api.IncludeEngines;
@@ -11,6 +11,6 @@ import static io.cucumber.junit.platform.engine.Constants.*;
 @IncludeEngines("cucumber")
 @SelectClasspathResource("features")
 @ConfigurationParameter(key = PLUGIN_PROPERTY_NAME, value = "pretty, html:target/cucumber-reports/report.html")
-@ConfigurationParameter(key = GLUE_PROPERTY_NAME, value = "br.com.fiap.siase.execution.bdd")
+@ConfigurationParameter(key = GLUE_PROPERTY_NAME, value = "br.com.fiap.siase.bdd")
 public class CucumberTest {
 }
