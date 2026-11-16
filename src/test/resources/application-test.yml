@@ -1,26 +1,27 @@
 spring:
   datasource:
-    url: jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1;MODE=PostgreSQL
+    url: jdbc:h2:mem:execdb;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE
     driver-class-name: org.h2.Driver
     username: sa
-    password:
+    password: ""
   jpa:
     hibernate:
       ddl-auto: create-drop
-    properties:
-      hibernate:
-        dialect: org.hibernate.dialect.H2Dialect
   flyway:
     enabled: false
 
-aws:
-  region: us-east-1
+app:
+  aws:
+    region: us-east-1
+    endpoint: ""
   sqs:
-    queue-url-execution: https://sqs.us-east-1.amazonaws.com/test/execution
-    queue-url-os-updates: https://sqs.us-east-1.amazonaws.com/test/os-updates
-    poll-interval-ms: 999999999
+    execution-url: http://test/execution
+    os-updates-url: http://test/os-updates
   dynamodb:
-    table-fila: siase-execution-fila-test
+    fila-table: test-fila
+  jwt:
+    secret: test-secret-test-secret-test-secret-xx
 
-jwt:
-  secret: dGVzdFNlY3JldEtleUZvclRlc3RpbmdQdXJwb3Nlc09ubHkxMjM0NTY=
+springdoc:
+  swagger-ui:
+    enabled: false

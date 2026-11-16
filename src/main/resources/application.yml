@@ -1,59 +1,57 @@
+server:
+  port: 8083
+
 spring:
   application:
     name: siase-execution-service
   datasource:
     url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:siase_exec_db}
-    username: ${DB_USER:siase_user}
+    username: ${DB_USER:siase_exec_user}
     password: ${DB_PASSWORD:siase_pass}
-    driver-class-name: org.postgresql.Driver
   jpa:
     hibernate:
-      ddl-auto: none
-    show-sql: false
-    properties:
-      hibernate:
-        dialect: org.hibernate.dialect.PostgreSQLDialect
-    open-in-view: false
+      ddl-auto: validate
   flyway:
     enabled: true
-    locations: classpath:db/migration
-    baseline-on-migrate: true
+  springdoc:
+    swagger-ui:
+      path: /api/swagger-ui.html
+    api-docs:
+      path: /api/v3/api-docs
 
-server:
-  port: ${SERVER_PORT:8083}
-  servlet:
-    context-path: /api
-
-springdoc:
-  api-docs:
-    path: /v3/api-docs
-  swagger-ui:
-    path: /swagger-ui.html
-
-jwt:
-  secret: ${JWT_SECRET:bXlTdXBlclNlY3JldEtleUZvckpXVEF1dGhlbnRpY2F0aW9uMjAyNA==}
-
-aws:
-  region: ${AWS_REGION:us-east-1}
+app:
+  aws:
+    region: ${AWS_REGION:us-east-1}
+    endpoint: ${AWS_ENDPOINT:}     # ex.: http://localhost:4566 p/ LocalStack
   sqs:
-    queue-url-execution: ${SQS_EXECUTION_URL}
-    queue-url-os-updates: ${SQS_OS_UPDATES_URL}
-    poll-interval-ms: ${SQS_POLL_INTERVAL_MS:5000}
+    execution-url: ${SQS_EXECUTION_URL:http://localhost:4566/000000000000/siase-execution-queue}
+    os-updates-url: ${SQS_OS_UPDATES_URL:http://localhost:4566/000000000000/siase-os-updates-queue}
+    poll-delay-ms: ${SQS_POLL_DELAY_MS:5000}
   dynamodb:
-    table-fila: ${DYNAMODB_TABLE_FILA:siase-execution-fila}
+    fila-table: ${DYNAMODB_FILA_TABLE:siase-homolog-execution-fila}
+  jwt:
+    secret: ${JWT_SECRET:dev-secret-change-me}
 
 management:
-  server:
-    port: ${MANAGEMENT_SERVER_PORT:8093}
   endpoints:
     web:
       exposure:
-        include: health,info,metrics,prometheus
+        include: health,info,prometheus
+      base-path: /actuator
   endpoint:
     health:
       probes:
         enabled: true
+    prometheus:
+      enabled: true
+  metrics:
+    tags:
+      application: ${spring.application.name}
+      environment: ${ENVIRONMENT:production}
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
 
 logging:
   level:
-    br.com.fiap.siase: INFO
+    root: info

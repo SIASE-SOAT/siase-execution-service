@@ -1,42 +1,91 @@
 # siase-execution-service
 
-> SIASE — Fase 4 | Microsserviço de Execução de Serviços
+Microsserviço de **execução de serviços** do sistema SIASE (oficina mecânica) —
+Fase 4 do Tech Challenge FIAP. Gerencia a fila de execução das Ordens de Serviço
+aprovadas e publica os eventos do Saga quando o serviço é iniciado/finalizado.
 
-## Descrição
+## Arquitetura
 
-Responsável por gerenciar a fila de execução das OS aprovadas, controlar o ciclo de execução pelos mecânicos e publicar eventos de conclusão via **AWS SQS**. Usa **DynamoDB** para a fila de estado em tempo real e **PostgreSQL** para histórico de execuções.
+Hexagonal (ports & adapters), Java 17 + Spring Boot 3.2.4:
 
-## Responsabilidades
+```
+┌─────────── REST /api/execucao ──────────┐      ┌─ DynamoDB: fila (NoSQL)
+│  GET    /api/execucao/fila              │ ───▶ │
+│  GET    /api/execucao                   │      └─ Postgres: histórico (SQL)
+│  POST   /api/execucao/{osId}/iniciar    │
+│  POST   /api/execucao/{osId}/finalizar  │
+└─────────────────────────────────────────┘
+   SQS execution-queue (in): ORCAMENTO_APROVADO → enfileira
+                            OS_CANCELADA        → compensação
+   SQS os-updates-queue (out): EXECUCAO_INICIADA / EXECUCAO_FINALIZADA / EXECUCAO_CANCELADA
+```
 
-- Consumir `ORCAMENTO_APROVADO` → enfileirar OS para execução
-- Mecânico inicia execução → publica `EXECUCAO_INICIADA`
-- Mecânico finaliza execução → publica `EXECUCAO_FINALIZADA`
-- Compensação: cancelar execução ao receber `OS_CANCELADA`
+## Saga Pattern — papel do serviço
 
-## Bancos de Dados
+Coreografia via SQS (decisão e diagrama completos em `docs/adr/ADR-001`):
 
-| Banco | Uso |
-|---|---|
-| DynamoDB `siase-execution-fila` | Estado em tempo real da fila (NA_FILA, EM_EXECUCAO, FINALIZADA) |
-| PostgreSQL `siase_exec_db` | Histórico de execuções para auditoria e métricas |
+- **Consome** `siase-execution-queue`: `ORCAMENTO_APROVADO` (enfileira a OS),
+  `OS_CANCELADA` (**compensação**: cancela o item e publica `EXECUCAO_CANCELADA`)
+- **Produz** para `siase-os-updates-queue`: `EXECUCAO_INICIADA` (os-service →
+  `EM_EXECUCAO`) e `EXECUCAO_FINALIZADA` (os-service → `FINALIZADA` /
+  `AGUARDANDO_PAGAMENTO`)
+- Idempotência: `ORCAMENTO_APROVADO` duplicado é ignorado (chave `osId`)
 
-## Endpoints
+## Bancos de dados (por serviço)
 
-| Método | Endpoint | Auth | Descrição |
-|---|---|---|---|
-| GET | `/api/execucao/fila` | JWT | Listar fila |
-| GET | `/api/execucao/fila/{osId}` | JWT | Consultar OS na fila |
-| PATCH | `/api/execucao/fila/{osId}/iniciar` | JWT | Iniciar execução |
-| PATCH | `/api/execucao/fila/{osId}/finalizar` | JWT | Finalizar execução |
+| Dado | Banco | Por quê |
+|---|---|---|
+| Fila de execução | DynamoDB `siase-<env>-execution-fila` | key-value por `osId`, alta vazão (NoSQL) |
+| Histórico de execução | Postgres `siase_exec_db` | trilha de auditoria relacional (SQL) |
+
+Nenhum serviço acessa o banco de outro — atualização de estado só via eventos.
 
 ## Testes
 
+- Unitários (JUnit 5) cobrindo os 5 use cases + domínio
+- **BDD (Cucumber)** `src/test/resources/features/execution_saga.feature`:
+  fluxo feliz de execução + compensação por cancelamento
+- **JaCoCo** com gate de 80% de linhas no `mvn verify`
+
 ```bash
 mvn clean verify
-open target/site/jacoco/index.html
-open target/cucumber-reports/report.html
 ```
 
-## Documentação
+## CI/CD
 
-- [ADR-001 — DynamoDB para Fila de Execução](docs/adr/ADR-001-dynamodb-fila.md)
+`.github/workflows/ci.yml`: testes+cobertura → SonarCloud → build/push da imagem
+(GHCR) → deploy EKS homolog → deploy prod com aprovação manual.
+Branch protection na `main` (PR obrigatório + checks) 
+
+## Observabilidade (continuação da Fase 3)
+
+- `/actuator/prometheus` (Micrometer) — scrape via annotations no Deployment
+- Métrica do Saga: `siase_saga_eventos_total{servico="execution",evento,direcao}`
+- Logs JSON (logstash-encoder) com `correlationId` — propagado por header HTTP
+  `X-Correlation-Id` e **message attribute** do SQS (rastreio ponta a ponta)
+- Dashboard Grafana importável no pacote `siase-fase4`
+
+## API
+
+Swagger UI: `/api/swagger-ui.html` · OpenAPI: `/api/v3/api-docs`
+
+| Método | Rota | Descrição |
+|---|---|---|
+| GET | `/api/execucao/fila` | OSs aguardando execução |
+| GET | `/api/execucao` | todos os itens + histórico |
+| POST | `/api/execucao/{osId}/iniciar` | inicia execução (mecânico) |
+| POST | `/api/execucao/{osId}/finalizar` | finaliza execução |
+
+Endpoints internos exigem JWT (HS256, mesmo `JWT_SECRET` da auth-lambda da Fase 3).
+
+## Deploy
+
+```bash
+docker build -t ghcr.io/siase-soat/siase-execution-service:tag .
+kubectl apply -f k8s/deployment.yaml   # ajustar imagem/envs
+```
+
+Env vars: `DB_HOST/DB_NAME/DB_USER/DB_PASSWORD`, `SQS_EXECUTION_URL`,
+`SQS_OS_UPDATES_URL`, `DYNAMODB_FILA_TABLE`, `JWT_SECRET`, `AWS_REGION`.
+
+Porta: **8083**
