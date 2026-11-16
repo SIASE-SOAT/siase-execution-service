@@ -69,6 +69,7 @@ kind: Service
 metadata:
   name: siase-execution-service
 spec:
+  type: LoadBalancer
   selector:
     app: siase-execution-service
   ports:

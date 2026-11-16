@@ -13,7 +13,7 @@
 
     <groupId>br.com.fiap</groupId>
     <artifactId>siase-execution-service</artifactId>
-    <version>1.0.0</version>
+    <version>1.0.3</version>
     <packaging>jar</packaging>
     <name>SIASE - Execution Service</name>
     <description>Microsserviço de Execução de Serviços - Fase 4</description>
