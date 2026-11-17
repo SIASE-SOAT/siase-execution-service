@@ -1,5 +1,6 @@
 package br.com.fiap.siase.infrastructure.adapters.input;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import br.com.fiap.siase.application.usecase.CompensarExecucaoUseCase;
 import br.com.fiap.siase.application.usecase.EnfileirarOsUseCase;
 import br.com.fiap.siase.domain.model.EventoExecucao;
@@ -17,6 +18,13 @@ import software.amazon.awssdk.services.sqs.model.DeleteMessageRequest;
 import software.amazon.awssdk.services.sqs.model.Message;
 import software.amazon.awssdk.services.sqs.model.ReceiveMessageRequest;
 
+import java.util.ArrayList;
+import java.util.List;
+
+/**
+ * Consumer da execution-queue: ORCAMENTO_APROVADO enfileira a OS;
+ * OS_CANCELADA dispara a compensação (remove da fila e confirma EXECUCAO_CANCELADA).
+ */
 @Component
 public class ExecutionQueueConsumer {
 
@@ -70,9 +78,46 @@ public class ExecutionQueueConsumer {
     metrics.counter("siase_saga_eventos_total", "servico", "execution",
             "evento", evento.tipoEvento(), "direcao", "consumido").increment();
     switch (evento.tipoEvento()) {
-      case EventoExecucao.ORCAMENTO_APROVADO -> enfileirar.executar(evento.osId(), evento.numeroOs());
+      case EventoExecucao.ORCAMENTO_APROVADO -> enfileirar.executar(evento.osId(),
+              evento.numeroOs(), campoTexto(evento.payload(), "clienteNome"),
+              campoTexto(evento.payload(), "veiculo"), servicos(evento.payload()));
       case EventoExecucao.OS_CANCELADA -> compensar.executar(evento.osId());
       default -> log.warn("Evento desconhecido ignorado: {}", evento.tipoEvento());
+    }
+  }
+
+  private String campoTexto(String payload, String campo) {
+    JsonNode node = payload(payload);
+    JsonNode valor = node == null ? null : node.get(campo);
+    return valor != null && valor.isTextual() ? valor.asText() : null;
+  }
+
+  private List<String> servicos(String payload) {
+    JsonNode node = payload(payload);
+    if (node == null) return List.of();
+    JsonNode itens = node.has("servicos") ? node.get("servicos") : node.get("itensServico");
+    if (itens == null || !itens.isArray()) return List.of();
+    List<String> nomes = new ArrayList<>();
+    for (JsonNode item : itens) {
+      if (item.isTextual()) {
+        nomes.add(item.asText());
+      } else if (item.hasNonNull("descricao")) {
+        nomes.add(item.get("descricao").asText());
+      } else if (item.hasNonNull("servicoNome")) {
+        nomes.add(item.get("servicoNome").asText());
+      } else if (item.hasNonNull("nome")) {
+        nomes.add(item.get("nome").asText());
+      }
+    }
+    return nomes;
+  }
+
+  private JsonNode payload(String payload) {
+    try {
+      return payload == null || payload.isBlank() ? null : mapper.readTree(payload);
+    } catch (Exception e) {
+      log.warn("Payload do evento não é JSON válido: {}", payload);
+      return null;
     }
   }
 }

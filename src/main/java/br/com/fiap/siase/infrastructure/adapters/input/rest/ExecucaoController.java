@@ -38,10 +38,11 @@ public class ExecucaoController {
   @GetMapping
   public List<ItemFilaExecucao> todas() { return consultar.todas(); }
 
-  @Operation(summary = "Iniciar execução de uma OS")
+  @Operation(summary = "Iniciar execução de uma OS, opcionalmente informando o mecânico")
   @PostMapping("/{osId}/iniciar")
-  public ResponseEntity<Void> iniciar(@PathVariable UUID osId) {
-    iniciar.executar(osId);
+  public ResponseEntity<Void> iniciar(@PathVariable UUID osId,
+                                      @RequestParam(required = false) String mecanico) {
+    iniciar.executar(osId, mecanico);
     return ResponseEntity.accepted().build();
   }
 
