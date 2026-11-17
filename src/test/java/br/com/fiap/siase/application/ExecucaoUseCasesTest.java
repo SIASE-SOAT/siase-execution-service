@@ -6,6 +6,7 @@ import br.com.fiap.siase.domain.model.StatusExecucao;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.util.List;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -47,6 +48,21 @@ class ExecucaoUseCasesTest {
     enfileirar.executar(osId, "OS-0001");
     enfileirar.executar(osId, "OS-0001");
     assertEquals(1, fila.listarTodas().size());
+  }
+
+  @Test
+  void dadosDaOsEMecanicoFicamDisponiveisNaExecucao() {
+    UUID osId = UUID.randomUUID();
+    enfileirar.executar(osId, "OS-0001", "Maria Silva", "ABC-1234",
+            List.of("Troca de óleo", "Alinhamento"));
+    iniciar.executar(osId, "João Mecânico");
+
+    var item = fila.buscarPorOsId(osId).orElseThrow();
+    assertEquals("Maria Silva", item.getClienteNome());
+    assertEquals("ABC-1234", item.getVeiculo());
+    assertEquals(List.of("Troca de óleo", "Alinhamento"), item.getItensServico());
+    assertEquals("João Mecânico", item.getMecanico());
+    assertTrue(pub.eventos.get(0).payload().contains("João Mecânico"));
   }
 
   @Test

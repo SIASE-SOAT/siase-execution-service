@@ -13,6 +13,7 @@ import java.util.*;
 
 /**
  * Fila de execução no DynamoDB (banco NoSQL do serviço).
+ * Tabela siase-<env>-execution-fila: hash key osId (S).
  */
 @Component
 public class FilaExecucaoDynamoAdapter implements FilaExecucaoRepositoryPort {
@@ -31,6 +32,12 @@ public class FilaExecucaoDynamoAdapter implements FilaExecucaoRepositoryPort {
     Map<String, AttributeValue> m = new HashMap<>();
     m.put("osId", AttributeValue.fromS(item.getOsId().toString()));
     m.put("numeroOs", AttributeValue.fromS(item.getNumeroOs()));
+    texto(m, "clienteNome", item.getClienteNome());
+    texto(m, "veiculo", item.getVeiculo());
+    if (item.getItensServico() != null && !item.getItensServico().isEmpty()) {
+      m.put("itensServico", AttributeValue.fromSs(item.getItensServico()));
+    }
+    texto(m, "mecanico", item.getMecanico());
     m.put("status", AttributeValue.fromS(item.getStatus().name()));
     m.put("entradaNaFila", AttributeValue.fromN(String.valueOf(item.getEntradaNaFila().toEpochMilli())));
     if (item.getInicioExecucao() != null)
@@ -70,6 +77,19 @@ public class FilaExecucaoDynamoAdapter implements FilaExecucaoRepositoryPort {
             .key(Map.of("osId", AttributeValue.fromS(osId.toString()))).build());
   }
 
+  private void texto(Map<String, AttributeValue> item, String nome, String valor) {
+    if (valor != null && !valor.isBlank()) item.put(nome, AttributeValue.fromS(valor));
+  }
+
+  private String texto(Map<String, AttributeValue> item, String nome) {
+    return item.containsKey(nome) ? item.get(nome).s() : null;
+  }
+
+  private List<String> lista(Map<String, AttributeValue> item, String nome) {
+    return item.containsKey(nome) && item.get(nome).hasSs()
+            ? item.get(nome).ss() : List.of();
+  }
+
   private ItemFilaExecucao fromItem(Map<String, AttributeValue> m) {
     Instant inicio = m.containsKey("inicioExecucao")
             ? Instant.ofEpochMilli(Long.parseLong(m.get("inicioExecucao").n())) : null;
@@ -78,6 +98,10 @@ public class FilaExecucaoDynamoAdapter implements FilaExecucaoRepositoryPort {
     return ItemFilaExecucao.restaurar(
             UUID.fromString(m.get("osId").s()),
             m.get("numeroOs").s(),
+            texto(m, "clienteNome"),
+            texto(m, "veiculo"),
+            lista(m, "itensServico"),
+            texto(m, "mecanico"),
             StatusExecucao.valueOf(m.get("status").s()),
             Instant.ofEpochMilli(Long.parseLong(m.get("entradaNaFila").n())),
             inicio, fim);

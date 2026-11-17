@@ -24,11 +24,20 @@ public class IniciarExecucaoUseCase {
     }
 
     public void executar(UUID osId) {
+        executar(osId, null);
+    }
+
+    public void executar(UUID osId, String mecanico) {
         var item = fila.buscarPorOsId(osId)
                 .orElseThrow(() -> new IllegalArgumentException("OS não está na fila de execução"));
-        item.iniciar();
+        item.iniciar(mecanico);
         fila.salvar(item);
-        publicador.publicar(EventoExecucao.de(EventoExecucao.EXECUCAO_INICIADA, osId, item.getNumeroOs(), "Execução iniciada"));
-        historico.registrar(osId, "EXECUCAO_INICIADA", "Mecânico iniciou a execução");
+        String payload = mecanico == null || mecanico.isBlank()
+                ? "Execução iniciada"
+                : "{\"mecanico\":\"" + mecanico.replace("\\", "\\\\").replace("\"", "\\\"") + "\"}";
+        publicador.publicar(EventoExecucao.de(EventoExecucao.EXECUCAO_INICIADA,
+                osId, item.getNumeroOs(), payload));
+        historico.registrar(osId, "EXECUCAO_INICIADA",
+                mecanico == null ? "Mecânico iniciou a execução" : "Mecânico " + mecanico + " iniciou a execução");
     }
 }
