@@ -1,7 +1,7 @@
 # ADR-001 — DynamoDB para Fila de Execução em Tempo Real
 
 **Status:** Aceito  
-**Data:** 2025-01
+**Data:** 2026
 
 ## Decisão
 

@@ -89,3 +89,10 @@ Env vars: `DB_HOST/DB_NAME/DB_USER/DB_PASSWORD`, `SQS_EXECUTION_URL`,
 `SQS_OS_UPDATES_URL`, `DYNAMODB_FILA_TABLE`, `JWT_SECRET`, `AWS_REGION`.
 
 Porta: **8083**
+
+## Documentação
+
+- [ADR-001 — DynamoDB para Fila de Execução em Tempo Real](docs/adr/ADR-001-dynamodb-fila.md)
+- [ADR-002 — PostgreSQL para Histórico de Execuções](docs/adr/ADR-002-postgresql-historico.md)
+- [RFC-001 — Contratos de Eventos SQS do Execution Service](docs/rfc/RFC-001-contratos-eventos-execution.md)
+- [Diagramas de Sequência](docs/diagramas-sequencia.md)

@@ -1,7 +1,7 @@
 # ADR-002 — PostgreSQL para Histórico de Execuções
 
 **Status:** Aceito  
-**Data:** 2025-01
+**Data:** 2026
 
 ## Contexto
 
