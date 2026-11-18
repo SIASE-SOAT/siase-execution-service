@@ -1,60 +1,75 @@
 # RFC-001 — Contratos de Eventos SQS do Execution Service
 
-**Status:** Aprovado  
+**Status:** Aprovado
 **Data:** 2025-01
 
 ## Resumo
 
-Define os eventos que o Execution Service consome e produz no fluxo de execução de serviços.
+Define os eventos que o Execution Service consome e produz. O envelope segue o padrão do Saga: `tipoEvento`, `osId`, `numeroOs`, `payload` (JSON string opcional), `ocorridoEm`.
 
-## Eventos Consumidos
+## Eventos Consumidos (fila: `siase-execution-queue`)
 
-### ORCAMENTO_APROVADO (fila: `siase-execution-queue`)
+### ORCAMENTO_APROVADO
 ```json
 {
-  "tipo": "ORCAMENTO_APROVADO",
+  "tipoEvento": "ORCAMENTO_APROVADO",
   "osId": "uuid",
-  "osNumero": "OS-20250101-ABC123",
-  "clienteNome": "João Silva",
-  "veiculoPlaca": "ABC-1234",
-  "total": "350.00",
-  "status": "APROVADO"
+  "numeroOs": "OS-XXXXXXXX",
+  "payload": "{\"clienteNome\":\"João Silva\",\"veiculo\":\"Fiat Uno\",\"valorOrcamento\":350.00,\"servicos\":[{\"descricao\":\"Troca de óleo\",\"preco\":80.00}]}",
+  "ocorridoEm": "2025-01-01T10:00:00Z"
 }
 ```
-**Ação:** Enfileirar OS para execução no DynamoDB com status `NA_FILA`.
+**Ação:** Enfileirar OS no DynamoDB com status `NA_FILA`. O consumer extrai `clienteNome`, `veiculo` e `servicos` do payload para popular a fila. Idempotente: `osId` é PK no DynamoDB.
 
-### OS_CANCELADA (fila: `siase-execution-queue`)
+### OS_CANCELADA
 ```json
 {
-  "tipo": "OS_CANCELADA",
+  "tipoEvento": "OS_CANCELADA",
   "osId": "uuid",
-  "osNumero": "OS-20250101-ABC123",
-  "motivo": "Cliente desistiu"
+  "numeroOs": "OS-XXXXXXXX",
+  "payload": null,
+  "ocorridoEm": "2025-01-01T10:00:00Z"
 }
 ```
-**Ação:** Cancelar execução na fila (compensação Saga). Se já `FINALIZADA`, ignora.
+**Ação:** Cancelar item na fila (compensação Saga). Se OS não estava na fila, registra no histórico e ignora. Publica `EXECUCAO_CANCELADA`.
 
-## Eventos Produzidos
+## Eventos Produzidos (fila: `siase-os-updates-queue`)
 
-### EXECUCAO_INICIADA (fila: `siase-os-updates-queue`)
+### EXECUCAO_INICIADA
 ```json
 {
-  "tipo": "EXECUCAO_INICIADA",
-  "osNumero": "OS-20250101-ABC123",
-  "osId": "uuid"
+  "tipoEvento": "EXECUCAO_INICIADA",
+  "osId": "uuid",
+  "numeroOs": "OS-XXXXXXXX",
+  "payload": "{\"mecanico\":\"Carlos\"}",
+  "ocorridoEm": "2025-01-01T10:00:00Z"
 }
 ```
-**Efeito:** OS Service avança OS para `EM_EXECUCAO`.
+**Efeito:** os-service avança OS para `EM_EXECUCAO`. O campo `mecanico` no payload é opcional.
 
-### EXECUCAO_FINALIZADA (fila: `siase-os-updates-queue`)
+### EXECUCAO_FINALIZADA
 ```json
 {
-  "tipo": "EXECUCAO_FINALIZADA",
-  "osNumero": "OS-20250101-ABC123",
-  "osId": "uuid"
+  "tipoEvento": "EXECUCAO_FINALIZADA",
+  "osId": "uuid",
+  "numeroOs": "OS-XXXXXXXX",
+  "payload": "Execução finalizada",
+  "ocorridoEm": "2025-01-01T10:00:00Z"
 }
 ```
-**Efeito:** OS Service avança OS para `FINALIZADA`. Billing Service inicia cobrança via Mercado Pago.
+**Efeito:** os-service avança OS para `FINALIZADA`.
+
+### EXECUCAO_CANCELADA
+```json
+{
+  "tipoEvento": "EXECUCAO_CANCELADA",
+  "osId": "uuid",
+  "numeroOs": "OS-XXXXXXXX",
+  "payload": "Execução cancelada por compensação",
+  "ocorridoEm": "2025-01-01T10:00:00Z"
+}
+```
+**Efeito:** os-service registra no histórico; sem mudança de status (OS já está `CANCELADA`).
 
 ## Idempotência
 
@@ -64,8 +79,9 @@ O `osId` é chave primária no DynamoDB. Enfileirar a mesma OS duas vezes retorn
 
 O mecânico interage via REST:
 ```
-GET  /api/execucao/fila              → visualiza fila
-PATCH /api/execucao/fila/{osId}/iniciar   → inicia execução
-PATCH /api/execucao/fila/{osId}/finalizar → finaliza execução
+GET  /api/execucao/fila              → visualiza fila (itens NA_FILA)
+GET  /api/execucao                   → todos os itens + histórico
+POST /api/execucao/{osId}/iniciar    → inicia execução (param opcional: mecanico)
+POST /api/execucao/{osId}/finalizar  → finaliza execução
 ```
 Cada ação persiste no DynamoDB (estado) e no PostgreSQL (histórico) e publica o evento correspondente.
